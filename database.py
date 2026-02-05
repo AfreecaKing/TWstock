@@ -5,7 +5,7 @@ import os
 
 def create_table():
     """建立資料庫表格"""
-    os.makedirs('database', exist_ok=True)
+    os.makedirs('./database', exist_ok=True)
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
 

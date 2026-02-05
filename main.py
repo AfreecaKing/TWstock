@@ -112,21 +112,48 @@ class TaiwanStockApp:
                 label_result.config(text="請輸入股票代號", fg="red")
                 return
 
-            # 台股代碼格式：加上 .TW 或 .TWO
-            if not ticker_code.endswith(('.TW', '.TWO')):
-                ticker_code = ticker_code + '.TW'
-
-            # 新增股票資料
-            if download.insert_ticker(ticker_code):
-                # 指定分類
-                for cat_id, var in category_vars.items():
-                    if var.get():
-                        db.assign_ticker_to_category(ticker_code, cat_id)
-
-                label_result.config(text=f"{ticker_code} 已新增完成！", fg="green")
-                entry.delete(0, tk.END)
+            # 如果已經有後綴，直接使用
+            if ticker_code.endswith(('.TW', '.TWO')):
+                final_ticker = ticker_code
+                if download.insert_ticker(final_ticker):
+                    # 成功新增後指定分類
+                    for cat_id, var in category_vars.items():
+                        if var.get():
+                            db.assign_ticker_to_category(final_ticker, cat_id)
+                    label_result.config(text=f"{final_ticker} 已新增完成！", fg="green")
+                    entry.delete(0, tk.END)
+                else:
+                    label_result.config(text=f"新增失敗，請確認股票代號是否正確", fg="red")
             else:
-                label_result.config(text="新增失敗，請確認股票代號是否正確", fg="red")
+                # 先嘗試 .TW（上市）- 靜默模式
+                final_ticker = ticker_code + '.TW'
+                label_result.config(text=f"嘗試 {final_ticker}...", fg="blue")
+                self.root.update()
+                
+                if download.insert_ticker(final_ticker, silent=True):
+                    # .TW 成功
+                    print(f"✅ {final_ticker} 新增成功（上市股票）")
+                    for cat_id, var in category_vars.items():
+                        if var.get():
+                            db.assign_ticker_to_category(final_ticker, cat_id)
+                    label_result.config(text=f"{final_ticker} 已新增完成！", fg="green")
+                    entry.delete(0, tk.END)
+                else:
+                    # .TW 失敗，嘗試 .TWO（上櫃）
+                    final_ticker = ticker_code + '.TWO'
+                    label_result.config(text=f"嘗試 {final_ticker}...", fg="blue")
+                    self.root.update()
+                    
+                    if download.insert_ticker(final_ticker):
+                        # .TWO 成功
+                        print(f"✅ {final_ticker} 新增成功（上櫃股票）")
+                        for cat_id, var in category_vars.items():
+                            if var.get():
+                                db.assign_ticker_to_category(final_ticker, cat_id)
+                        label_result.config(text=f"{final_ticker} 已新增完成！", fg="green")
+                        entry.delete(0, tk.END)
+                    else:
+                        label_result.config(text=f"新增失敗，請確認股票代號 {ticker_code} 是否正確", fg="red")
 
         tk.Button(insert_frame, text="新增", width=15, command=insert_stock).pack(pady=5)
         tk.Button(insert_frame, text="返回", width=15, command=self.back).pack(pady=5)
@@ -431,13 +458,13 @@ class TaiwanStockApp:
         self.ax.clear()
         df = self.df.copy()
 
-        # 計算移動平均線
+        # 先用完整資料計算移動平均線
         if len(df) >= 20:
             df['MA20'] = df['close'].rolling(20).mean()
         if len(df) >= 60:
             df['MA60'] = df['close'].rolling(60).mean()
 
-        # 根據時間範圍篩選資料
+        # 再根據時間範圍篩選要顯示的資料
         if period != "ALL":
             end_date = df["date"].max()
             if period == "1M":
@@ -459,10 +486,13 @@ class TaiwanStockApp:
         # 繪製不同類型的圖表
         if chart_type == "price":
             self.ax.plot(df["date"], df["close"], label="Close Price", color='blue', linewidth=1.5)
-            if 'MA20' in df and len(df) >= 20:
+            
+            # 只要均線欄位存在就顯示（即使部分資料是 NaN）
+            if 'MA20' in df.columns:
                 self.ax.plot(df["date"], df['MA20'], label="MA20", color='orange', linewidth=1, alpha=0.7)
-            if 'MA60' in df and len(df) >= 60:
+            if 'MA60' in df.columns:
                 self.ax.plot(df["date"], df['MA60'], label="MA60", color='green', linewidth=1, alpha=0.7)
+            
             self.ax.set_title(f"{display_name} Price Chart ({period})", fontsize=12)
             self.ax.set_ylabel("Price (TWD)", fontsize=10)
             self.ax.legend(loc='best')
@@ -488,11 +518,11 @@ class TaiwanStockApp:
             self.ax.set_title(f"{display_name} Volume ({period})", fontsize=12)
             self.ax.set_ylabel("Volume (shares)", fontsize=10)
             
-            # 計算平均成交量
-            if len(df) >= 20:
-                df['vol_ma20'] = df['volume'].rolling(20).mean()
-                self.ax.plot(df["date"], df['vol_ma20'], label="20-day Avg", color='blue', linewidth=1.5)
-                self.ax.legend(loc='best')
+            # 計算平均成交量並畫水平線
+            avg_volume = df['volume'].mean()
+            self.ax.axhline(y=avg_volume, color='blue', linestyle='--', linewidth=1.5, 
+                           label=f'Avg: {avg_volume:,.0f}')
+            self.ax.legend(loc='best')
             self.ax.grid(True, alpha=0.3)
 
         self.ax.set_xlabel("Date", fontsize=10)

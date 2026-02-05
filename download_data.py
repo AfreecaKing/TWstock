@@ -3,19 +3,22 @@ import database as db
 from datetime import datetime, timedelta
 
 
-def insert_ticker(ticker):
+def insert_ticker(ticker, silent=False):
     """
     新增股票並抓取歷史資料
     ticker: 股票代碼，例如 "2330.TW"
+    silent: 是否靜默模式（用於自動重試時不顯示錯誤）
     """
-    print(f"🔄 正在抓取 {ticker} 的歷史資料...")
+    if not silent:
+        print(f"🔄 正在抓取 {ticker} 的歷史資料...")
     
     try:
         ticker_obj = yf.Ticker(ticker)
         df = ticker_obj.history(period="max")
         
         if df.empty:
-            print(f"⚠️ {ticker} 查無資料，請確認股票代碼是否正確")
+            if not silent:
+                print(f"⚠️ {ticker} 查無資料")
             return False
             
         df = df.reset_index()
@@ -47,11 +50,13 @@ def insert_ticker(ticker):
         
         # 存入資料庫
         db.insert_price(df)
-        print(f"✅ {ticker} 新增成功，共 {len(df)} 筆歷史資料")
+        if not silent:
+            print(f"✅ {ticker} 新增成功，共 {len(df)} 筆歷史資料")
         return True
         
     except Exception as e:
-        print(f"❌ {ticker} 新增失敗：{e}")
+        if not silent:
+            print(f"❌ {ticker} 新增失敗：{e}")
         return False
 
 
