@@ -58,6 +58,8 @@ class TaiwanStockApp:
 
         tk.Label(center_frame, text="台股管理系統", font=("Arial", 20, "bold")).pack(pady=20)
 
+        tk.Button(center_frame, text="查看大盤", width=20, height=2, bg="lightyellow",
+                  command=self.show_market_index).pack(pady=10)
         tk.Button(center_frame, text="新增股票", width=20, height=2,
                   command=self.show_insert_page).pack(pady=10)
         tk.Button(center_frame, text="瀏覽股票", width=20, height=2,
@@ -384,6 +386,90 @@ class TaiwanStockApp:
         else:
             messagebox.showerror("失敗", f"{display_name} 刪除失敗")
 
+    # ===== 查看大盤 =====
+    def show_market_index(self):
+        """顯示台股大盤走勢"""
+        market_frame = tk.Frame(self.root)
+        
+        tk.Label(market_frame, text="台股加權指數 (^TWII)", font=("Arial", 16)).pack(pady=10)
+        
+        # 顯示載入訊息
+        loading_label = tk.Label(market_frame, text="正在載入大盤資料...", font=("Arial", 12), fg="blue")
+        loading_label.pack(pady=20)
+        
+        self.show_frame(market_frame)
+        self.root.update()
+        
+        # 下載大盤資料
+        import yfinance as yf
+        try:
+            ticker_obj = yf.Ticker("^TWII")
+            df = ticker_obj.history(period="max")
+            
+            if df.empty:
+                loading_label.config(text="無法取得大盤資料", fg="red")
+                tk.Button(market_frame, text="返回", command=self.back).pack(pady=10)
+                return
+            
+            # 處理資料格式
+            df = df.reset_index()
+            df = df.rename(columns={
+                'Date': 'date',
+                'Close': 'close',
+                'Volume': 'volume',
+                'Open': 'open',
+                'High': 'high',
+                'Low': 'low'
+            })
+            df['date'] = pd.to_datetime(df['date'])
+            
+            # 移除載入訊息
+            loading_label.destroy()
+            
+            # 設定圖表參數
+            self.ticker = "^TWII"
+            self.df = df
+            self.time_offset = 0
+            self.current_period = "6M"
+            self.chart_type = "price"
+            
+            # 圖表類型選擇
+            control_frame = tk.Frame(market_frame)
+            control_frame.pack(pady=5)
+            tk.Button(control_frame, text="指數走勢", command=lambda: self.set_chart_type("price")).pack(side=tk.LEFT, padx=5)
+            tk.Button(control_frame, text="漲跌幅", command=lambda: self.set_chart_type("change")).pack(side=tk.LEFT, padx=5)
+            tk.Button(control_frame, text="成交量", command=lambda: self.set_chart_type("volume")).pack(side=tk.LEFT, padx=5)
+            
+            # 時間範圍選擇
+            period_frame = tk.Frame(market_frame)
+            period_frame.pack(pady=5)
+            tk.Button(period_frame, text="1個月", command=lambda: self.set_period("1M")).pack(side=tk.LEFT, padx=3)
+            tk.Button(period_frame, text="3個月", command=lambda: self.set_period("3M")).pack(side=tk.LEFT, padx=3)
+            tk.Button(period_frame, text="6個月", command=lambda: self.set_period("6M")).pack(side=tk.LEFT, padx=3)
+            tk.Button(period_frame, text="1年", command=lambda: self.set_period("1Y")).pack(side=tk.LEFT, padx=3)
+            tk.Button(period_frame, text="全部", command=lambda: self.set_period("ALL")).pack(side=tk.LEFT, padx=3)
+            
+            # 時間軸導航
+            nav_frame = tk.Frame(market_frame)
+            nav_frame.pack(pady=5)
+            tk.Button(nav_frame, text="◀ 上一段", command=self.prev_period).pack(side=tk.LEFT, padx=5)
+            tk.Button(nav_frame, text="下一段 ▶", command=self.next_period).pack(side=tk.LEFT, padx=5)
+            
+            # 圖表區域
+            self.figure = plt.Figure(figsize=(7, 4))
+            self.ax = self.figure.add_subplot(111)
+            self.canvas = FigureCanvasTkAgg(self.figure, market_frame)
+            self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+            
+            tk.Button(market_frame, text="返回", command=self.back).pack(pady=5)
+            
+            # 繪製圖表
+            self.draw_chart(self.chart_type, self.current_period)
+            
+        except Exception as e:
+            loading_label.config(text=f"載入失敗：{e}", fg="red")
+            tk.Button(market_frame, text="返回", command=self.back).pack(pady=10)
+
     # ===== 技術面分析 =====
     def view_ticker(self, ticker):
         self.ticker = ticker
@@ -481,7 +567,7 @@ class TaiwanStockApp:
                 start_date = end_date - pd.DateOffset(years=1)
             df = df[(df["date"] > start_date) & (df["date"] <= end_date)]
 
-        display_name = self.ticker.replace('.TW', '').replace('.TWO', '')
+        display_name = self.ticker.replace('.TW', '').replace('.TWO', '').replace('^TWII', 'TWII')
 
         # 繪製不同類型的圖表
         if chart_type == "price":
