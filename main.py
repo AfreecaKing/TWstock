@@ -131,7 +131,7 @@ class TaiwanStockApp:
                 final_ticker = ticker_code + '.TW'
                 label_result.config(text=f"嘗試 {final_ticker}...", fg="blue")
                 self.root.update()
-                
+
                 if download.insert_ticker(final_ticker, silent=True):
                     # .TW 成功
                     print(f"✅ {final_ticker} 新增成功（上市股票）")
@@ -145,7 +145,7 @@ class TaiwanStockApp:
                     final_ticker = ticker_code + '.TWO'
                     label_result.config(text=f"嘗試 {final_ticker}...", fg="blue")
                     self.root.update()
-                    
+
                     if download.insert_ticker(final_ticker):
                         # .TWO 成功
                         print(f"✅ {final_ticker} 新增成功（上櫃股票）")
@@ -390,27 +390,27 @@ class TaiwanStockApp:
     def show_market_index(self):
         """顯示台股大盤走勢"""
         market_frame = tk.Frame(self.root)
-        
+
         tk.Label(market_frame, text="台股加權指數 (^TWII)", font=("Arial", 16)).pack(pady=10)
-        
+
         # 顯示載入訊息
         loading_label = tk.Label(market_frame, text="正在載入大盤資料...", font=("Arial", 12), fg="blue")
         loading_label.pack(pady=20)
-        
+
         self.show_frame(market_frame)
         self.root.update()
-        
+
         # 下載大盤資料
         import yfinance as yf
         try:
             ticker_obj = yf.Ticker("^TWII")
             df = ticker_obj.history(period="max")
-            
+
             if df.empty:
                 loading_label.config(text="無法取得大盤資料", fg="red")
                 tk.Button(market_frame, text="返回", command=self.back).pack(pady=10)
                 return
-            
+
             # 處理資料格式
             df = df.reset_index()
             df = df.rename(columns={
@@ -422,24 +422,27 @@ class TaiwanStockApp:
                 'Low': 'low'
             })
             df['date'] = pd.to_datetime(df['date'])
-            
+
             # 移除載入訊息
             loading_label.destroy()
-            
+
             # 設定圖表參數
             self.ticker = "^TWII"
             self.df = df
             self.time_offset = 0
             self.current_period = "6M"
             self.chart_type = "price"
-            
+
             # 圖表類型選擇
             control_frame = tk.Frame(market_frame)
             control_frame.pack(pady=5)
-            tk.Button(control_frame, text="指數走勢", command=lambda: self.set_chart_type("price")).pack(side=tk.LEFT, padx=5)
-            tk.Button(control_frame, text="漲跌幅", command=lambda: self.set_chart_type("change")).pack(side=tk.LEFT, padx=5)
-            tk.Button(control_frame, text="成交量", command=lambda: self.set_chart_type("volume")).pack(side=tk.LEFT, padx=5)
-            
+            tk.Button(control_frame, text="指數走勢", command=lambda: self.set_chart_type("price")).pack(side=tk.LEFT,
+                                                                                                         padx=5)
+            tk.Button(control_frame, text="漲跌幅", command=lambda: self.set_chart_type("change")).pack(side=tk.LEFT,
+                                                                                                        padx=5)
+            tk.Button(control_frame, text="成交量", command=lambda: self.set_chart_type("volume")).pack(side=tk.LEFT,
+                                                                                                        padx=5)
+
             # 時間範圍選擇
             period_frame = tk.Frame(market_frame)
             period_frame.pack(pady=5)
@@ -448,24 +451,24 @@ class TaiwanStockApp:
             tk.Button(period_frame, text="6個月", command=lambda: self.set_period("6M")).pack(side=tk.LEFT, padx=3)
             tk.Button(period_frame, text="1年", command=lambda: self.set_period("1Y")).pack(side=tk.LEFT, padx=3)
             tk.Button(period_frame, text="全部", command=lambda: self.set_period("ALL")).pack(side=tk.LEFT, padx=3)
-            
+
             # 時間軸導航
             nav_frame = tk.Frame(market_frame)
             nav_frame.pack(pady=5)
             tk.Button(nav_frame, text="◀ 上一段", command=self.prev_period).pack(side=tk.LEFT, padx=5)
             tk.Button(nav_frame, text="下一段 ▶", command=self.next_period).pack(side=tk.LEFT, padx=5)
-            
+
             # 圖表區域
             self.figure = plt.Figure(figsize=(7, 4))
             self.ax = self.figure.add_subplot(111)
             self.canvas = FigureCanvasTkAgg(self.figure, market_frame)
             self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-            
+
             tk.Button(market_frame, text="返回", command=self.back).pack(pady=5)
-            
+
             # 繪製圖表
             self.draw_chart(self.chart_type, self.current_period)
-            
+
         except Exception as e:
             loading_label.config(text=f"載入失敗：{e}", fg="red")
             tk.Button(market_frame, text="返回", command=self.back).pack(pady=10)
@@ -474,26 +477,29 @@ class TaiwanStockApp:
     def view_ticker(self, ticker):
         self.ticker = ticker
         self.df = db.select_price(ticker)
-        
+
         if self.df.empty:
             messagebox.showinfo("無資料", f"{ticker} 尚無價格資料")
             return
-            
+
         self.time_offset = 0
         self.current_period = "6M"
         self.chart_type = "price"
 
         chart_frame = tk.Frame(self.root)
-        
+
         display_name = ticker.replace('.TW', '').replace('.TWO', '')
         tk.Label(chart_frame, text=f"{display_name} 技術分析", font=("Arial", 16)).pack(pady=5)
 
         # 圖表類型選擇
         control_frame = tk.Frame(chart_frame)
         control_frame.pack(pady=5)
-        tk.Button(control_frame, text="股價走勢", command=lambda: self.set_chart_type("price")).pack(side=tk.LEFT, padx=5)
-        tk.Button(control_frame, text="漲跌幅", command=lambda: self.set_chart_type("change")).pack(side=tk.LEFT, padx=5)
-        tk.Button(control_frame, text="成交量", command=lambda: self.set_chart_type("volume")).pack(side=tk.LEFT, padx=5)
+        tk.Button(control_frame, text="股價走勢", command=lambda: self.set_chart_type("price")).pack(side=tk.LEFT,
+                                                                                                     padx=5)
+        tk.Button(control_frame, text="漲跌幅", command=lambda: self.set_chart_type("change")).pack(side=tk.LEFT,
+                                                                                                    padx=5)
+        tk.Button(control_frame, text="成交量", command=lambda: self.set_chart_type("volume")).pack(side=tk.LEFT,
+                                                                                                    padx=5)
 
         # 時間範圍選擇
         period_frame = tk.Frame(chart_frame)
@@ -547,6 +553,8 @@ class TaiwanStockApp:
         # 先用完整資料計算移動平均線
         if len(df) >= 20:
             df['MA20'] = df['close'].rolling(20).mean()
+        if len(df) >= 40:
+            df['MA40'] = df['close'].rolling(40).mean()
         if len(df) >= 60:
             df['MA60'] = df['close'].rolling(60).mean()
 
@@ -572,13 +580,15 @@ class TaiwanStockApp:
         # 繪製不同類型的圖表
         if chart_type == "price":
             self.ax.plot(df["date"], df["close"], label="Close Price", color='blue', linewidth=1.5)
-            
+
             # 只要均線欄位存在就顯示（即使部分資料是 NaN）
             if 'MA20' in df.columns:
                 self.ax.plot(df["date"], df['MA20'], label="MA20", color='orange', linewidth=1, alpha=0.7)
+            if 'MA40' in df.columns:
+                self.ax.plot(df["date"], df['MA40'], label="MA40", color='red', linewidth=1, alpha=0.7)
             if 'MA60' in df.columns:
                 self.ax.plot(df["date"], df['MA60'], label="MA60", color='green', linewidth=1, alpha=0.7)
-            
+
             self.ax.set_title(f"{display_name} Price Chart ({period})", fontsize=12)
             self.ax.set_ylabel("Price (TWD)", fontsize=10)
             self.ax.legend(loc='best')
@@ -598,16 +608,16 @@ class TaiwanStockApp:
             self.ax.grid(True, alpha=0.3)
 
         elif chart_type == "volume":
-            colors = ['red' if df.iloc[i]['close'] >= df.iloc[i]['open'] else 'green' 
-                     for i in range(len(df))]
+            colors = ['red' if df.iloc[i]['close'] >= df.iloc[i]['open'] else 'green'
+                      for i in range(len(df))]
             self.ax.bar(df["date"], df['volume'], color=colors, alpha=0.6, width=0.8)
             self.ax.set_title(f"{display_name} Volume ({period})", fontsize=12)
             self.ax.set_ylabel("Volume (shares)", fontsize=10)
-            
+
             # 計算平均成交量並畫水平線
             avg_volume = df['volume'].mean()
-            self.ax.axhline(y=avg_volume, color='blue', linestyle='--', linewidth=1.5, 
-                           label=f'Avg: {avg_volume:,.0f}')
+            self.ax.axhline(y=avg_volume, color='blue', linestyle='--', linewidth=1.5,
+                            label=f'Avg: {avg_volume:,.0f}')
             self.ax.legend(loc='best')
             self.ax.grid(True, alpha=0.3)
 
