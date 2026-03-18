@@ -58,7 +58,7 @@ def insert_price(data):
     """
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
-    
+
     sql = """
     INSERT INTO price_daily (
         date, open, high, low, close, volume, dividends, stock_splits, ticker
@@ -74,7 +74,7 @@ def insert_price(data):
         dividends = excluded.dividends,
         stock_splits = excluded.stock_splits;
     """
-    
+
     data_to_insert = list(data.itertuples(index=False, name=None))
     cursor.executemany(sql, data_to_insert)
     conn.commit()
@@ -280,7 +280,7 @@ def get_ticker_statistics(ticker):
     """
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
-    
+
     cursor.execute("""
         SELECT 
             COUNT(*) as total_days,
@@ -293,10 +293,10 @@ def get_ticker_statistics(ticker):
         FROM price_daily
         WHERE ticker = ?
     """, (ticker,))
-    
+
     result = cursor.fetchone()
     conn.close()
-    
+
     if result:
         return {
             'total_days': result[0],
@@ -308,3 +308,46 @@ def get_ticker_statistics(ticker):
             'total_volume': result[6]
         }
     return None
+
+
+def get_category_avg_change_5d(category_id=None):
+    """
+    取得分類內所有股票近5個交易日的綜合平均漲跌幅
+    category_id 為 None 時計算全部股票
+    """
+    conn = sqlite3.connect('database/taiwan_stock.db')
+    cursor = conn.cursor()
+
+    if category_id is None:
+        cursor.execute("SELECT DISTINCT ticker FROM price_daily")
+    else:
+        cursor.execute("""
+            SELECT DISTINCT ticker FROM ticker_categories
+            WHERE category_id = ?
+        """, (category_id,))
+
+    tickers = [row[0] for row in cursor.fetchall()]
+    conn.close()
+
+    all_changes = []
+    for ticker in tickers:
+        conn = sqlite3.connect('database/taiwan_stock.db')
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT close FROM price_daily
+            WHERE ticker = ?
+            ORDER BY date DESC
+            LIMIT 6
+        """, (ticker,))
+        rows = cursor.fetchall()
+        conn.close()
+
+        if len(rows) < 2:
+            continue
+
+        closes = [r[0] for r in rows]  # 最新在前
+        for i in range(len(closes) - 1):
+            change = (closes[i] - closes[i + 1]) / closes[i + 1] * 100
+            all_changes.append(change)
+
+    return sum(all_changes) / len(all_changes) if all_changes else None

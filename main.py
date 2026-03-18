@@ -201,7 +201,16 @@ class TaiwanStockApp:
     def show_all_ticker_page(self, category_id=None, category_name="全部股票"):
         name_frame = tk.Frame(self.root)
 
-        tk.Label(name_frame, text=f"股票清單 - {category_name}", font=("Arial", 16)).pack(pady=10)
+        tk.Label(name_frame, text=f"股票清單 - {category_name}", font=("Arial", 16)).pack(pady=5)
+
+        # ===== 分類5日綜合平均漲跌幅 =====
+        avg = db.get_category_avg_change_5d(category_id)
+        if avg is not None:
+            avg_text = f"分類5日綜合平均漲跌幅：{avg:+.2f}%"
+            avg_color = "red" if avg > 0 else "green" if avg < 0 else "gray"
+            tk.Label(name_frame, text=avg_text, font=("Arial", 12, "bold"), fg=avg_color).pack(pady=5)
+        else:
+            tk.Label(name_frame, text="分類5日綜合平均漲跌幅：無資料", font=("Arial", 12), fg="gray").pack(pady=5)
 
         # 取得股票列表
         if category_id is None:
