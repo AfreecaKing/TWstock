@@ -9,7 +9,6 @@ def create_table():
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
 
-    # 股價日線表
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS price_daily (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,7 +25,6 @@ def create_table():
         )
     ''')
 
-    # 分類表
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +32,6 @@ def create_table():
         )
     ''')
 
-    # 股票分類對應表
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ticker_categories (
             ticker TEXT,
@@ -44,7 +41,6 @@ def create_table():
         )
     ''')
 
-    # 不設定預設分類，讓用戶自己建立
     conn.commit()
     cursor.close()
     conn.close()
@@ -52,10 +48,6 @@ def create_table():
 
 
 def insert_price(data):
-    """
-    新增或更新股價資料
-    data: DataFrame 包含 date, open, high, low, close, volume, dividends, stock_splits, ticker
-    """
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
 
@@ -82,10 +74,6 @@ def insert_price(data):
 
 
 def select_price(ticker):
-    """
-    查詢指定股票的價格資料
-    回傳 DataFrame
-    """
     conn = sqlite3.connect('database/taiwan_stock.db')
     try:
         sql = """
@@ -102,46 +90,31 @@ def select_price(ticker):
 
 
 def get_all_tickers():
-    """取得所有股票代碼"""
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT DISTINCT ticker
-        FROM price_daily
-        ORDER BY ticker
-    """)
+    cursor.execute("SELECT DISTINCT ticker FROM price_daily ORDER BY ticker")
     tickers = [row[0] for row in cursor.fetchall()]
     conn.close()
     return tickers
 
 
 def get_last_price_date(ticker):
-    """取得指定股票的最後價格日期"""
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT MAX(date)
-        FROM price_daily
-        WHERE ticker = ?
-    """, (ticker,))
+    cursor.execute("SELECT MAX(date) FROM price_daily WHERE ticker = ?", (ticker,))
     result = cursor.fetchone()
     conn.close()
     return result[0] if result[0] else None
 
 
 def delete_ticker(ticker):
-    """刪除指定股票的所有資料"""
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
     try:
-        # 刪除股價資料
         cursor.execute("DELETE FROM price_daily WHERE ticker = ?", (ticker,))
         price_deleted = cursor.rowcount
-
-        # 刪除分類關聯
         cursor.execute("DELETE FROM ticker_categories WHERE ticker = ?", (ticker,))
         category_deleted = cursor.rowcount
-
         conn.commit()
         print(f"🗑️ {ticker} 已刪除 | 股價資料: {price_deleted} 筆, 分類關聯: {category_deleted} 筆")
         return price_deleted > 0
@@ -152,10 +125,7 @@ def delete_ticker(ticker):
         conn.close()
 
 
-# ========== 分類管理功能 ==========
-
 def get_all_categories():
-    """取得所有分類"""
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
     cursor.execute("SELECT id, name FROM categories ORDER BY name")
@@ -165,7 +135,6 @@ def get_all_categories():
 
 
 def add_category(name):
-    """新增分類"""
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
     try:
@@ -173,13 +142,12 @@ def add_category(name):
         conn.commit()
         return True
     except sqlite3.IntegrityError:
-        return False  # 分類已存在
+        return False
     finally:
         conn.close()
 
 
 def delete_category(category_id):
-    """刪除分類（會自動刪除相關的股票-分類關聯）"""
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
     try:
@@ -193,7 +161,6 @@ def delete_category(category_id):
 
 
 def assign_ticker_to_category(ticker, category_id):
-    """將股票指定到分類"""
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
     try:
@@ -210,7 +177,6 @@ def assign_ticker_to_category(ticker, category_id):
 
 
 def remove_ticker_from_category(ticker, category_id):
-    """將股票從分類中移除"""
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
     try:
@@ -227,7 +193,6 @@ def remove_ticker_from_category(ticker, category_id):
 
 
 def get_ticker_categories(ticker):
-    """取得股票所屬的所有分類"""
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
     cursor.execute("""
@@ -243,15 +208,10 @@ def get_ticker_categories(ticker):
 
 
 def get_tickers_by_category(category_id=None):
-    """
-    取得分類下的所有股票
-    如果 category_id 為 None，回傳所有股票及其分類
-    """
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
 
     if category_id is None:
-        # 取得所有股票及其分類
         cursor.execute("""
             SELECT DISTINCT pd.ticker, c.name as category_name
             FROM price_daily pd
@@ -260,7 +220,6 @@ def get_tickers_by_category(category_id=None):
             ORDER BY pd.ticker
         """)
     else:
-        # 取得特定分類下的股票
         cursor.execute("""
             SELECT DISTINCT pd.ticker
             FROM price_daily pd
@@ -275,12 +234,8 @@ def get_tickers_by_category(category_id=None):
 
 
 def get_ticker_statistics(ticker):
-    """
-    取得股票統計資訊（選用功能）
-    """
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
-
     cursor.execute("""
         SELECT 
             COUNT(*) as total_days,
@@ -293,10 +248,8 @@ def get_ticker_statistics(ticker):
         FROM price_daily
         WHERE ticker = ?
     """, (ticker,))
-
     result = cursor.fetchone()
     conn.close()
-
     if result:
         return {
             'total_days': result[0],
@@ -311,10 +264,7 @@ def get_ticker_statistics(ticker):
 
 
 def get_category_avg_change_5d(category_id=None):
-    """
-    取得分類內所有股票近5個交易日的綜合平均漲跌幅
-    category_id 為 None 時計算全部股票
-    """
+    """取得分類內所有股票近N日的總漲跌幅平均（預設5日）"""
     conn = sqlite3.connect('database/taiwan_stock.db')
     cursor = conn.cursor()
 
@@ -329,7 +279,9 @@ def get_category_avg_change_5d(category_id=None):
     tickers = [row[0] for row in cursor.fetchall()]
     conn.close()
 
-    all_changes = []
+    changes = []
+    days = 5
+
     for ticker in tickers:
         conn = sqlite3.connect('database/taiwan_stock.db')
         cursor = conn.cursor()
@@ -337,17 +289,73 @@ def get_category_avg_change_5d(category_id=None):
             SELECT close FROM price_daily
             WHERE ticker = ?
             ORDER BY date DESC
-            LIMIT 6
-        """, (ticker,))
+            LIMIT ?
+        """, (ticker, days))
         rows = cursor.fetchall()
         conn.close()
 
-        if len(rows) < 2:
+        if len(rows) < days:
             continue
 
         closes = [r[0] for r in rows]  # 最新在前
-        for i in range(len(closes) - 1):
-            change = (closes[i] - closes[i + 1]) / closes[i + 1] * 100
-            all_changes.append(change)
+        change = (closes[0] - closes[-1]) / closes[-1] * 100
+        changes.append(change)
 
-    return sum(all_changes) / len(all_changes) if all_changes else None
+    return sum(changes) / len(changes) if changes else None
+
+
+def get_all_categories_avg_change(days=5):
+    """
+    取得所有分類的漲跌幅平均，用於比較圖表。
+    days: 計算天數（最新一天 vs N天前）
+    """
+    conn = sqlite3.connect('database/taiwan_stock.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name FROM categories ORDER BY name")
+    categories = cursor.fetchall()
+    conn.close()
+
+    results = []
+    for cat_id, cat_name in categories:
+        conn = sqlite3.connect('database/taiwan_stock.db')
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT DISTINCT ticker FROM ticker_categories
+            WHERE category_id = ?
+        """, (cat_id,))
+        tickers = [row[0] for row in cursor.fetchall()]
+        conn.close()
+
+        if not tickers:
+            continue
+
+        changes = []
+        for ticker in tickers:
+            conn = sqlite3.connect('database/taiwan_stock.db')
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT close FROM price_daily
+                WHERE ticker = ?
+                ORDER BY date DESC
+                LIMIT ?
+            """, (ticker, days))
+            rows = cursor.fetchall()
+            conn.close()
+
+            if len(rows) < days:
+                continue
+
+            closes = [r[0] for r in rows]  # 最新在前
+            change = (closes[0] - closes[-1]) / closes[-1] * 100
+            changes.append(change)
+
+        if changes:
+            results.append({
+                'id': cat_id,
+                'name': cat_name,
+                'avg_change': sum(changes) / len(changes),
+                'ticker_count': len(tickers)
+            })
+
+    results.sort(key=lambda x: x['avg_change'], reverse=True)
+    return results
