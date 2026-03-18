@@ -432,6 +432,16 @@ class TaiwanStockApp:
             self.time_offset = 0
             self.current_period = "6M"
             self.chart_type = "price"
+            self.ma_periods = [20, 40, 60]  # 預設均線天數
+
+            # 均線設定框
+            ma_frame = tk.Frame(market_frame)
+            ma_frame.pack(pady=5)
+            tk.Label(ma_frame, text="均線天數（以逗號分隔）：", font=("Arial", 10)).pack(side=tk.LEFT, padx=5)
+            self.ma_entry = tk.Entry(ma_frame, width=20, font=("Arial", 10))
+            self.ma_entry.insert(0, "20,40,60")  # 預設值
+            self.ma_entry.pack(side=tk.LEFT, padx=5)
+            tk.Button(ma_frame, text="更新", command=self.update_ma_periods).pack(side=tk.LEFT, padx=5)
 
             # 圖表類型選擇
             control_frame = tk.Frame(market_frame)
@@ -442,6 +452,8 @@ class TaiwanStockApp:
                                                                                                         padx=5)
             tk.Button(control_frame, text="成交量", command=lambda: self.set_chart_type("volume")).pack(side=tk.LEFT,
                                                                                                         padx=5)
+            tk.Button(control_frame, text="MACD", command=lambda: self.set_chart_type("macd")).pack(side=tk.LEFT,
+                                                                                                    padx=5)
 
             # 時間範圍選擇
             period_frame = tk.Frame(market_frame)
@@ -485,11 +497,21 @@ class TaiwanStockApp:
         self.time_offset = 0
         self.current_period = "6M"
         self.chart_type = "price"
+        self.ma_periods = [20, 40, 60]  # 預設均線天數
 
         chart_frame = tk.Frame(self.root)
 
         display_name = ticker.replace('.TW', '').replace('.TWO', '')
         tk.Label(chart_frame, text=f"{display_name} 技術分析", font=("Arial", 16)).pack(pady=5)
+
+        # 均線設定框
+        ma_frame = tk.Frame(chart_frame)
+        ma_frame.pack(pady=5)
+        tk.Label(ma_frame, text="均線天數（以逗號分隔）：", font=("Arial", 10)).pack(side=tk.LEFT, padx=5)
+        self.ma_entry = tk.Entry(ma_frame, width=20, font=("Arial", 10))
+        self.ma_entry.insert(0, "20,40,60")  # 預設值
+        self.ma_entry.pack(side=tk.LEFT, padx=5)
+        tk.Button(ma_frame, text="更新", command=self.update_ma_periods).pack(side=tk.LEFT, padx=5)
 
         # 圖表類型選擇
         control_frame = tk.Frame(chart_frame)
@@ -500,6 +522,8 @@ class TaiwanStockApp:
                                                                                                     padx=5)
         tk.Button(control_frame, text="成交量", command=lambda: self.set_chart_type("volume")).pack(side=tk.LEFT,
                                                                                                     padx=5)
+        tk.Button(control_frame, text="MACD", command=lambda: self.set_chart_type("macd")).pack(side=tk.LEFT,
+                                                                                                padx=5)
 
         # 時間範圍選擇
         period_frame = tk.Frame(chart_frame)
@@ -527,6 +551,29 @@ class TaiwanStockApp:
         self.show_frame(chart_frame)
         self.draw_chart(self.chart_type, self.current_period)
 
+    def update_ma_periods(self):
+        """更新均線天數"""
+        try:
+            input_str = self.ma_entry.get().strip()
+            if not input_str:
+                self.ma_periods = []
+            else:
+                # 解析輸入的數字，以逗號分隔
+                self.ma_periods = [int(x.strip()) for x in input_str.split(',')]
+                # 驗證輸入
+                if any(p <= 0 for p in self.ma_periods):
+                    messagebox.showwarning("警告", "均線天數必須為正整數")
+                    self.ma_entry.delete(0, tk.END)
+                    self.ma_entry.insert(0, "20,40,60")
+                    return
+
+            # 重新繪製圖表
+            self.draw_chart(self.chart_type, self.current_period)
+        except ValueError:
+            messagebox.showwarning("警告", "請輸入正確的數字，以逗號分隔（例如：20,40,60）")
+            self.ma_entry.delete(0, tk.END)
+            self.ma_entry.insert(0, "20,40,60")
+
     def set_chart_type(self, chart_type):
         self.chart_type = chart_type
         self.time_offset = 0
@@ -551,12 +598,16 @@ class TaiwanStockApp:
         df = self.df.copy()
 
         # 先用完整資料計算移動平均線
-        if len(df) >= 20:
-            df['MA20'] = df['close'].rolling(20).mean()
-        if len(df) >= 40:
-            df['MA40'] = df['close'].rolling(40).mean()
-        if len(df) >= 60:
-            df['MA60'] = df['close'].rolling(60).mean()
+        for ma_period in self.ma_periods:
+            if len(df) >= ma_period:
+                df[f'MA{ma_period}'] = df['close'].rolling(ma_period).mean()
+
+        # 計算 MACD
+        df['EMA12'] = df['close'].ewm(span=12).mean()
+        df['EMA26'] = df['close'].ewm(span=26).mean()
+        df['MACD'] = df['EMA12'] - df['EMA26']
+        df['Signal'] = df['MACD'].ewm(span=9).mean()
+        df['Histogram'] = df['MACD'] - df['Signal']
 
         # 再根據時間範圍篩選要顯示的資料
         if period != "ALL":
@@ -581,13 +632,13 @@ class TaiwanStockApp:
         if chart_type == "price":
             self.ax.plot(df["date"], df["close"], label="Close Price", color='blue', linewidth=1.5)
 
-            # 只要均線欄位存在就顯示（即使部分資料是 NaN）
-            if 'MA20' in df.columns:
-                self.ax.plot(df["date"], df['MA20'], label="MA20", color='orange', linewidth=1, alpha=0.7)
-            if 'MA40' in df.columns:
-                self.ax.plot(df["date"], df['MA40'], label="MA40", color='red', linewidth=1, alpha=0.7)
-            if 'MA60' in df.columns:
-                self.ax.plot(df["date"], df['MA60'], label="MA60", color='green', linewidth=1, alpha=0.7)
+            # 根據 ma_periods 動態繪製均線
+            colors = ['orange', 'red', 'green', 'purple', 'brown', 'pink']
+            for idx, ma_period in enumerate(self.ma_periods):
+                ma_col = f'MA{ma_period}'
+                if ma_col in df.columns:
+                    color = colors[idx % len(colors)]
+                    self.ax.plot(df["date"], df[ma_col], label=f"MA{ma_period}", color=color, linewidth=1, alpha=0.7)
 
             self.ax.set_title(f"{display_name} Price Chart ({period})", fontsize=12)
             self.ax.set_ylabel("Price (TWD)", fontsize=10)
@@ -618,6 +669,23 @@ class TaiwanStockApp:
             avg_volume = df['volume'].mean()
             self.ax.axhline(y=avg_volume, color='blue', linestyle='--', linewidth=1.5,
                             label=f'Avg: {avg_volume:,.0f}')
+            self.ax.legend(loc='best')
+            self.ax.grid(True, alpha=0.3)
+
+        elif chart_type == "macd":
+            # MACD 圖表：顯示 MACD 線、Signal 線和 Histogram
+            self.ax.plot(df["date"], df['MACD'], label='MACD', color='blue', linewidth=2)
+            self.ax.plot(df["date"], df['Signal'], label='Signal', color='red', linewidth=2)
+
+            # 繪製柱狀圖（Histogram）
+            colors = ['green' if x >= 0 else 'red' for x in df['Histogram']]
+            self.ax.bar(df["date"], df['Histogram'], label='Histogram', color=colors, alpha=0.3, width=0.8)
+
+            # 添加零軸線
+            self.ax.axhline(y=0, color='black', linestyle='-', linewidth=0.8)
+
+            self.ax.set_title(f"{display_name} MACD ({period})", fontsize=12)
+            self.ax.set_ylabel("MACD Value", fontsize=10)
             self.ax.legend(loc='best')
             self.ax.grid(True, alpha=0.3)
 
